@@ -80,11 +80,23 @@ class ZeppelinClient:
         note_json = resp.json()['body']
         return NoteResult(note_json)
 
-    def execute_note(self, note_id, params = {}):
-        self.submit_note(note_id, params)
-        return self.wait_until_note_finished(note_id)
+    def _current_milli_time(self):
+        return round(time.time() * 1000)
+
+    def execute_note(self, note_id, params = {}, orig_note = False):
+        exec_note_id = note_id
+        if not orig_note:
+            exec_note_id = self.clone_note(note_id, dest_note_path="/airflow_jobs/" + note_id + "/" + str(self._current_milli_time()))
+            logging.info("Clone a new note: " + exec_note_id)
+        try:
+            self.submit_note(exec_note_id, params)
+            return self.wait_until_note_finished(exec_note_id)
+        finally:
+            if not orig_note:
+                self.delete_note(exec_note_id)
 
     def submit_note(self, note_id, params = {}):
+        logging.info("Submitting note: " + note_id + ", with params: " + str(params))
         resp = self.session.post(self.zeppelin_rest_url + "/api/notebook/job/" + note_id,
                           params = {'blocking': 'false', 'isolated': 'true'},
                           json = {'params': params})
@@ -98,6 +110,11 @@ class ZeppelinClient:
             if not note_result.is_running:
                 return note_result
             time.sleep(self.client_config.get_query_interval())
+
+    def clone_note(self, note_id, dest_note_path):
+        resp = self.session.post(self.zeppelin_rest_url + "/api/notebook/" + note_id, json = {'name': dest_note_path})
+        self._check_response(resp)
+        return resp.json()['body']
 
     def add_paragraph(self, note_id, title, text):
         resp = self.session.post(self.zeppelin_rest_url + "/api/notebook/" + note_id + "/paragraph", json = {'title': title, 'text': text})

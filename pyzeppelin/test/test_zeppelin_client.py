@@ -12,7 +12,7 @@ class TestZeppelinClient(unittest.TestCase):
     def test_note_operation(self):
         client_config = ClientConfig("http://localhost:8080")
         client = ZeppelinClient(client_config)
-        client.login('user1', 'password2')
+        #client.login('user1', 'password2')
         client.get_version()
         note_id = client.create_note('/pyzeppelin/test/note_1')
         client.delete_note(note_id)
@@ -21,14 +21,22 @@ class TestZeppelinClient(unittest.TestCase):
             client.delete_note('invalid_note_id')
         self.assertTrue('No such note' in str(context.exception))
 
-        try:
-            client.create_note('/pyzeppelin/test/note_2')
-            with self.assertRaises(Exception) as context:
-                client.create_note('/pyzeppelin/test/note_2')
-            self.assertTrue('existed' in str(context.exception))
-        finally:
-            client.delete_note('/pyzeppelin/test/note_2')
+        # note2_id = None
+        # try:
+        #     note2_id = client.create_note('/pyzeppelin/test/note_2')
+        #     with self.assertRaises(Exception) as context:
+        #         client.create_note('/pyzeppelin/test/note_2')
+        #     self.assertTrue('existed' in str(context.exception))
+        # finally:
+        #     if note2_id:
+        #         client.delete_note(note2_id)
 
+
+        note_id = client.create_note('/pyzeppelin/test/note_1')
+        client.add_paragraph(note_id, 'shell example', "%sh echo 'hello world'")
+        cloned_note_id = client.clone_note(note_id, '/pyzeppelin/test/cloned_note_1')
+        cloned_note = client.query_note_result(cloned_note_id)
+        self.assertEqual(1, len(cloned_note.paragraphs))
 
     def test_execute_paragraph(self):
         client_config = ClientConfig("http://localhost:8080")
