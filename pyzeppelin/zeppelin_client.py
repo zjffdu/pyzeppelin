@@ -5,7 +5,7 @@ from pyzeppelin.result import NoteResult
 from pyzeppelin.result import ParagraphResult
 import time
 import logging
-
+import uuid
 
 class SessionInfo:
 
@@ -80,13 +80,10 @@ class ZeppelinClient:
         note_json = resp.json()['body']
         return NoteResult(note_json)
 
-    def _current_milli_time(self):
-        return round(time.time() * 1000)
-
     def execute_note(self, note_id, params = {}, orig_note = False):
         exec_note_id = note_id
         if not orig_note:
-            exec_note_id = self.clone_note(note_id, dest_note_path="/airflow_jobs/" + note_id + "/" + str(self._current_milli_time()))
+            exec_note_id = self.clone_note(note_id, dest_note_path="/airflow_jobs/" + note_id + "/" + str(uuid.uuid4()))
             logging.info("Clone a new note: " + exec_note_id)
         try:
             self.submit_note(exec_note_id, params)
@@ -126,11 +123,20 @@ class ZeppelinClient:
                                 json = {'title' : title, 'text' : text})
         self._check_response(resp)
 
-    def execute_paragraph(self, note_id, paragraph_id, params = {}, session_id = ""):
-        self.submit_paragraph(note_id, paragraph_id, params, session_id)
-        return self.wait_until_paragraph_finished(note_id, paragraph_id)
+    def execute_paragraph(self, note_id, paragraph_id, params = {}, session_id = "", orig_note = False):
+        exec_note_id = note_id
+        if not orig_note:
+            exec_note_id = self.clone_note(note_id, dest_note_path="/airflow_jobs/" + note_id + "/" + str(uuid.uuid4()))
+            logging.info("Clone a new note: " + exec_note_id)
+        try:
+            self.submit_paragraph(exec_note_id, paragraph_id, params, session_id)
+            return self.wait_until_paragraph_finished(exec_note_id, paragraph_id)
+        finally:
+            if not orig_note:
+                self.delete_note(exec_note_id)
 
     def submit_paragraph(self, note_id, paragraph_id, params = {}, session_id = ""):
+        logging.info("Submitting paragraph: " + paragraph_id + ", with params: " + str(params))
         resp = self.session.post(self.zeppelin_rest_url + "/api/notebook/job/" + note_id + "/" + paragraph_id,
                                  params = {'sessionId': session_id},
                                  json = {'params': params})

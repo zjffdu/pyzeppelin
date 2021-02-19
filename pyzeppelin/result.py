@@ -1,9 +1,10 @@
-
+import json
 
 
 class NoteResult:
 
     def __init__(self, note_json):
+        self.note_json = note_json
         self.note_id = note_json['id']
         self.is_running = False
         if 'info' in note_json:
@@ -18,18 +19,26 @@ class NoteResult:
     def is_success(self):
         for p in self.paragraphs:
             if p.status != 'FINISHED':
-                return False;
+                return False
         return True
 
-    def __repr__(self):
-        return str(self.__dict__)
+    def get_errors(self):
+        for p in self.paragraphs:
+            if p.status != 'FINISHED':
+                return "Paragraph {0} is failed.\n\nText: {1}\n\nResults:{2}\n\nAssociated job urls: {3}\n\nJson:{4}"\
+                    .format(p.paragraph_id, p.text, '\n'.join(list(map(lambda x: x[1], p.results))), str(p.jobUrls), p.paragraph_json)
+        return "All paragraphs are finished successfully!"
 
+    def __repr__(self):
+        return json.dumps(self.note_json, indent=2)
 
 
 class ParagraphResult:
 
     def __init__(self, paragraph_json):
+        self.paragraph_json = paragraph_json
         self.paragraph_id = paragraph_json['id']
+        self.text = paragraph_json['text']
         self.status = paragraph_json['status']
         self.progress = 0
         if 'progress' in paragraph_json:
@@ -57,8 +66,17 @@ class ParagraphResult:
     def is_running(self):
         return self.status == 'RUNNING'
 
+    def is_success(self):
+        return self.status == 'FINISHED'
+
+    def get_errors(self):
+        if self.status != 'FINISHED':
+            return "Paragraph {0} is failed.\n\nText: {1}\n\nResults:{2}\n\nAssociated job urls: {3}\n\nJson:{4}"\
+                .format(self.paragraph_id, self.text, '\n'.join(list(map(lambda x: x[1], self.results))), str(self.jobUrls), self.paragraph_json)
+        return "Paragraph is finished successfully!"
+
     def __repr__(self):
-        return str(self.__dict__)
+        return json.dumps(self.paragraph_json, indent=2)
 
 
 class ExecuteResult:
