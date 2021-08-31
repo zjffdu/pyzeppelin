@@ -1,0 +1,46 @@
+name: Test
+on: [push]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@master
+      - uses: actions/setup-python@v2
+        with:
+          python-version: '3.8'
+      - name: Install IPython
+        run: |
+          pip install jupyter
+          pip install protobuf
+          pip install grpcio
+          pip install pandas
+          pip install numpy
+      - name: Display Python version
+        run: python -c "import sys; print(sys.version)"
+      - name: Set up JDK 8
+        uses: actions/setup-java@v2
+        with:
+          distribution: 'adopt'
+          java-version: 8
+      - name: Download Spark
+        run: |
+          wget https://dist.apache.org/repos/dist/release/spark/spark-3.1.2/spark-3.1.2-bin-hadoop3.2.tgz
+          tar -xvf spark-3.1.2-bin-hadoop3.2.tgz
+          echo "SPARK_HOME=`pwd`/spark-3.1.2-bin-hadoop3.2" >> $GITHUB_ENV
+      - name: Download Flink
+        run: |
+          wget https://dist.apache.org/repos/dist/release/flink/flink-1.13.2/flink-1.13.2-bin-scala_2.11.tgz
+          tar -xvf flink-1.13.2-bin-scala_2.11.tgz
+          echo "FLINK_HOME=`pwd`/flink-1.13.2" >> $GITHUB_ENV
+      - name: Download Zeppelin
+        run: |
+          wget https://dist.apache.org/repos/dist/release/zeppelin/zeppelin-0.10.0/zeppelin-0.10.0-bin-all.tgz
+          tar -xvf zeppelin-0.10.0-bin-all.tgz
+          zeppelin-0.10.0-bin-all/bin/zeppelin-daemon.sh start
+          echo "ZEPPELIN_HOME=`pwd`/zeppelin-0.10.0-bin-all" >> $GITHUB_ENV
+      - name: Run PyZeppelin Test
+#        continue-on-error: true
+        uses: onichandame/python-test-action@master
+      - name: Print logs
+        run: |
+          cat ${ZEPPELIN_HOME}/logs/zeppelin-*.log
