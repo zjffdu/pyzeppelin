@@ -96,7 +96,8 @@ class ZeppelinClient:
     def wait_until_note_finished(self, note_id):
         while True:
             note_result = self.query_note_result(note_id)
-            logging.info("note_is_running: " + str(note_result.is_running))
+            logging.info("note_is_running:" + str(note_result.is_running) + ",jobURL:" +
+                         str(list(map(lambda p: p.jobUrls, filter(lambda p: p.jobUrls, note_result.paragraphs)))))
             if not note_result.is_running:
                 return note_result
             time.sleep(self.client_config.get_query_interval())
@@ -147,7 +148,7 @@ class ZeppelinClient:
     def wait_until_paragraph_finished(self, note_id, paragraph_id):
         while True:
             paragraph_result = self.query_paragraph_result(note_id, paragraph_id)
-            logging.debug("paragraph_status:" + paragraph_result.status)
+            logging.info("paragraph_status:"+str(paragraph_result.status)+", jobUrls:"+str(paragraph_result.jobUrls))
             if paragraph_result.is_completed():
                 return paragraph_result
             time.sleep(self.client_config.get_query_interval())
