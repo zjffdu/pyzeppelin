@@ -1,25 +1,7 @@
-#!/usr/bin/env python3
-
-#
-# Licensed to the Apache Software Foundation (ASF) under one or more
-# contributor license agreements.  See the NOTICE file distributed with
-# this work for additional information regarding copyright ownership.
-# The ASF licenses this file to You under the Apache License, Version 2.0
-# (the "License"); you may not use this file except in compliance with
-# the License.  You may obtain a copy of the License at
-#
-#    http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-
 import unittest
 
 from pyzeppelin.config import ClientConfig
-from pyzeppelin.notebook import Note
+from pyzeppelin.result import NoteResult
 import json
 
 from pyzeppelin.zeppelin_client import ZeppelinClient
@@ -30,7 +12,7 @@ class TestZeppelinClient(unittest.TestCase):
     def test_note_operation(self):
         client_config = ClientConfig("http://localhost:8080")
         client = ZeppelinClient(client_config)
-        # client.login('user1', 'password2')
+        client.login('user1', 'password2')
         client.get_version()
         note_id = client.create_note('/pyzeppelin/test/note_1')
         client.delete_note(note_id)
@@ -39,21 +21,19 @@ class TestZeppelinClient(unittest.TestCase):
             client.delete_note('invalid_note_id')
         self.assertTrue('No such note' in str(context.exception))
 
-        note_id = None
         try:
-            note_id = client.create_note('/pyzeppelin/test/note_2')
+            client.create_note('/pyzeppelin/test/note_2')
             with self.assertRaises(Exception) as context:
                 client.create_note('/pyzeppelin/test/note_2')
             self.assertTrue('existed' in str(context.exception))
         finally:
-            if note_id:
-                client.delete_note(note_id)
+            client.delete_note('/pyzeppelin/test/note_2')
 
 
     def test_execute_paragraph(self):
         client_config = ClientConfig("http://localhost:8080")
         client = ZeppelinClient(client_config)
-        # client.login('user1', 'password2')
+        client.login('user1', 'password2')
 
         note_id = None
         try:
@@ -88,7 +68,7 @@ class TestZeppelinClient(unittest.TestCase):
     def test_submit_paragraph(self):
         client_config = ClientConfig("http://localhost:8080")
         client = ZeppelinClient(client_config)
-        # client.login('user1', 'password2')
+        client.login('user1', 'password2')
 
         note_id = None
         try:
@@ -126,7 +106,7 @@ class TestZeppelinClient(unittest.TestCase):
     def test_execute_note(self):
         client_config = ClientConfig("http://localhost:8080")
         client = ZeppelinClient(client_config)
-        # client.login('user1', 'password2')
+        client.login('user1', 'password2')
 
         with self.assertRaises(Exception) as context:
             client.execute_note('invalid_note_id')
@@ -165,7 +145,7 @@ class TestZeppelinClient(unittest.TestCase):
     def test_submit_note(self):
         client_config = ClientConfig("http://localhost:8080")
         client = ZeppelinClient(client_config)
-        #client.login('user1', 'password2')
+        client.login('user1', 'password2')
 
         with self.assertRaises(Exception) as context:
             client.submit_note('invalid_note_id')
@@ -202,56 +182,6 @@ class TestZeppelinClient(unittest.TestCase):
         finally:
             if note_id:
                 client.delete_note(note_id)
-
-    def test_python_basic_tutorial(self):
-        client_config = ClientConfig("http://localhost:8080")
-        client = ZeppelinClient(client_config)
-        #client.login('user1', 'password2')
-
-        note_id = "2EYDJKFFY"
-        note_result = client.submit_note(note_id)
-        note_result = client.wait_until_note_finished(note_id)
-        self.assertEqual(True, note_result.is_success(), note_result)
-
-    def test_spark_basic_features(self):
-        client_config = ClientConfig("http://localhost:8080")
-        client = ZeppelinClient(client_config)
-        #client.login('user1', 'password2')
-
-        note_id = "2A94M5J1Z"
-        note_result = client.submit_note(note_id)
-        note_result = client.wait_until_note_finished(note_id)
-        self.assertEqual(True, note_result.is_success(), note_result)
-
-    def test_spark_sql_tutorial_scala(self):
-        client_config = ClientConfig("http://localhost:8080")
-        client = ZeppelinClient(client_config)
-        #client.login('user1', 'password2')
-
-        note_id = "2EYUV26VR"
-        note_result = client.submit_note(note_id)
-        note_result = client.wait_until_note_finished(note_id)
-        self.assertEqual(True, note_result.is_success(), note_result)
-
-    def test_spark_sql_tutorial_pyspark(self):
-        client_config = ClientConfig("http://localhost:8080")
-        client = ZeppelinClient(client_config)
-        #client.login('user1', 'password2')
-
-        note_id = "2EWM84JXA"
-        note_result = client.submit_note(note_id)
-        note_result = client.wait_until_note_finished(note_id)
-        self.assertEqual(True, note_result.is_success(), note_result)
-
-    def test_flink_basic_tutorial(self):
-        client_config = ClientConfig("http://localhost:8080")
-        client = ZeppelinClient(client_config)
-        #client.login('user1', 'password2')
-
-        note_id = "2F2YS7PCE"
-        note_result = client.submit_note(note_id)
-        note_result = client.wait_until_note_finished(note_id)
-        self.assertEqual(True, note_result.is_success(), note_result)
 
 
 if __name__ == '__main__':

@@ -1,36 +1,15 @@
-#!/usr/bin/env python3
-
-#
-# Licensed to the Apache Software Foundation (ASF) under one or more
-# contributor license agreements.  See the NOTICE file distributed with
-# this work for additional information regarding copyright ownership.
-# The ASF licenses this file to You under the Apache License, Version 2.0
-# (the "License"); you may not use this file except in compliance with
-# the License.  You may obtain a copy of the License at
-#
-#    http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
 
 import requests
 from pyzeppelin.config import ClientConfig
-from pyzeppelin.notebook import Note
-from pyzeppelin.notebook import Paragraph
+from pyzeppelin.result import NoteResult
+from pyzeppelin.result import ParagraphResult
 import time
 import logging
-
+import uuid
 
 class SessionInfo:
 
     def __init__(self, resp_json):
-        """
-
-        :param resp_json:
-        """
         self.session_id = None
         self.note_id = None
         self.interpreter = None
@@ -53,9 +32,7 @@ class SessionInfo:
 
 
 class ZeppelinClient:
-    """
-    Low leve of Zeppelin SDK, this is used to interact with Zeppelin in note/paragraph abstraction layer.
-    """
+
     def __init__(self, client_config):
         self.client_config = client_config
         self.zeppelin_rest_url = client_config.get_zeppelin_rest_url()
@@ -67,22 +44,11 @@ class ZeppelinClient:
                 resp.status_code, resp.text))
 
     def get_version(self):
-        """
-        Return Zeppelin version
-        :return:
-        """
         resp = self.session.get(self.zeppelin_rest_url + "/api/version")
         self._check_response(resp)
         return resp.json()['body']['version']
 
     def login(self, user_name, password, knox_sso = None):
-        """
-        Login to Zeppelin, use knox_sso if it is provided.
-        :param user_name:
-        :param password:
-        :param knox_sso:
-        :return:
-        """
         if knox_sso:
             self.session.auth = (user_name, password)
             resp = self.session.get(knox_sso + "?originalUrl=" + self.zeppelin_rest_url, verify=False)
@@ -99,72 +65,38 @@ class ZeppelinClient:
             self._check_response(resp)
 
     def create_note(self, note_path, default_interpreter_group = 'spark'):
-        """
-        Create a new note with give note_path and default_interpreter_group
-        :param note_path:
-        :param default_interpreter_group:
-        :return:
-        """
         resp = self.session.post(self.zeppelin_rest_url + "/api/notebook",
                                  json =  {'name' : note_path, 'defaultInterpreterGroup': default_interpreter_group})
         self._check_response(resp)
         return resp.json()['body']
 
     def delete_note(self, note_id):
-        """
-        Delete a note with give note_id
-        :param note_id:
-        :return:
-        """
         resp = self.session.delete(self.zeppelin_rest_url + "/api/notebook/" + note_id)
         self._check_response(resp)
 
     def query_note_result(self, note_id):
-        """
-        Query note result via Zeppelin rest api and convert the returned json to NoteResult
-        :param note_id:
-        :return:
-        """
         resp = self.session.get(self.zeppelin_rest_url + "/api/notebook/" + note_id)
         self._check_response(resp)
         note_json = resp.json()['body']
-        return Note(note_json)
+        return NoteResult(note_json)
 
-    def execute_note(self, note_id, params = {}):
-        """
-        Execute give note with params, block until note execution is finished.
-        :param note_id:
-        :param params:
-        :return:
-        """
-        self.submit_note(note_id, params)
+    def execute_note(self, note_id, user = None, params = {}, cluster_id = None):
+        self.get_note(note_id, True)
+        self.submit_note(note_id, user, params, cluster_id)
         return self.wait_until_note_finished(note_id)
 
-    def submit_note(self, note_id, params = {}):
-        """
-        Execute give note with params, return once submission is finished. It is non-blocking api,
-        won't wait for the completion of note execution.
-        :param note_id:
-        :param params:
-        :return:
-        """
-        logging.info("Submitting note: " + note_id + " with params: " + str(params))
+    def submit_note(self, note_id, user = None, params = {}, cluster_id = None):
+        logging.info("Submitting note: " + note_id + ", to cluster: " + str(cluster_id) + " with params: " + str(params) + " user: " + str(user))
         resp = self.session.post(self.zeppelin_rest_url + "/api/notebook/job/" + note_id,
-                          params = {'blocking': 'false', 'isolated': 'true', 'reload': 'true'},
+                          params = {'blocking': 'false', 'isolated': 'true', 'reload': 'true', 'user': user, 'clusterId': cluster_id},
                           json = {'params': params})
         self._check_response(resp)
         return self.query_note_result(note_id)
 
     def wait_until_note_finished(self, note_id):
-        """
-        Wait until note execution is finished.
-        :param note_id:
-        :return:
-        """
         while True:
             note_result = self.query_note_result(note_id)
-            logging.info("note_is_running: " + str(note_result.is_running) + ", jobURL: " +
-                         str(list(map(lambda p: p.jobUrls, filter(lambda p: p.jobUrls, note_result.paragraphs)))))
+            logging.info("note_is_running: " + str(note_result.is_running))
             if not note_result.is_running:
                 return note_result
             time.sleep(self.client_config.get_query_interval())
@@ -175,116 +107,51 @@ class ZeppelinClient:
         return resp.json()['body']
 
     def get_note(self, note_id, reload = False):
-        """
-        Get specified note.
-        :param note_id:
-        :param reload:
-        :return:
-        """
         resp = self.session.get(self.zeppelin_rest_url + "/api/notebook/" + note_id, params = {'reload': reload})
         self._check_response(resp)
         return resp.json()['body']
 
     def clone_note(self, note_id, dest_note_path):
-        """
-        Clone specific note to another location.
-        :param note_id:
-        :param dest_note_path:
-        :return:
-        """
         resp = self.session.post(self.zeppelin_rest_url + "/api/notebook/" + note_id, json = {'name': dest_note_path})
         self._check_response(resp)
         return resp.json()['body']
 
     def add_paragraph(self, note_id, title, text):
-        """
-        Add paragraph to specific note at the last paragraph
-        :param note_id:
-        :param title:
-        :param text:
-        :return:
-        """
         resp = self.session.post(self.zeppelin_rest_url + "/api/notebook/" + note_id + "/paragraph", json = {'title': title, 'text': text})
         self._check_response(resp)
         return resp.json()['body']
 
     def update_paragraph(self, note_id, paragraph_id, title, text):
-        """
-        update specified paragraph with given title and text
-        :param note_id:
-        :param paragraph_id:
-        :param title:
-        :param text:
-        :return:
-        """
         resp = self.session.put(self.zeppelin_rest_url + "/api/notebook/" + note_id + "/paragraph/" + paragraph_id,
                                 json = {'title' : title, 'text' : text})
         self._check_response(resp)
 
-    def execute_paragraph(self, note_id, paragraph_id, params = {}, session_id = "", isolated = False):
-        """
-        Blocking api, execute specified paragraph with given params
-        :param note_id:
-        :param paragraph_id:
-        :param params:
-        :param session_id:
-        :param isolated:
-        :return:
-        """
-        self.submit_paragraph(note_id, paragraph_id, params, session_id, isolated)
+    def execute_paragraph(self, note_id, paragraph_id, user = None, params = {}, session_id = "", cluster_id = None, isolated = False):
+        self.get_note(note_id, True)
+        self.submit_paragraph(note_id, paragraph_id, user, params, session_id, cluster_id, isolated)
         return self.wait_until_paragraph_finished(note_id, paragraph_id)
 
-    def submit_paragraph(self, note_id, paragraph_id, params = {}, session_id = "", isolated = False):
-        """
-        Non-blocking api, execute specified paragraph with given params.
-        :param note_id:
-        :param paragraph_id:
-        :param params:
-        :param session_id:
-        :param isolated:
-        :return:
-        """
-        logging.info("Submitting paragraph: " + paragraph_id + " with params: " + str(params))
+    def submit_paragraph(self, note_id, paragraph_id, user = None, params = {}, session_id = "", cluster_id = None, isolated = False):
+        logging.info("Submitting paragraph: " + paragraph_id + " of note: " + note_id + ", to cluster: " + str(cluster_id) + " with params: " + str(params))
         resp = self.session.post(self.zeppelin_rest_url + "/api/notebook/job/" + note_id + "/" + paragraph_id,
-                                 params = {'sessionId': session_id, 'isolated': isolated, 'reload': 'true'},
+                                 params = {'sessionId': session_id, 'isolated': isolated, 'reload': 'true', 'user' : user, 'clusterId': cluster_id},
                                  json = {'params': params})
         self._check_response(resp)
         return self.query_paragraph_result(note_id, paragraph_id)
 
     def query_paragraph_result(self, note_id, paragraph_id):
-        """
-        Query specified paragraph result.
-        :param note_id:
-        :param paragraph_id:
-        :return:
-        """
         resp = self.session.get(self.zeppelin_rest_url + "/api/notebook/" + note_id + "/paragraph/" + paragraph_id)
         self._check_response(resp)
-        return Paragraph(resp.json()['body'])
+        return ParagraphResult(resp.json()['body'])
 
     def wait_until_paragraph_finished(self, note_id, paragraph_id):
-        """
-        Wait until specified paragraph execution is finished
-        :param note_id:
-        :param paragraph_id:
-        :return:
-        """
         while True:
             paragraph_result = self.query_paragraph_result(note_id, paragraph_id)
-            logging.info("paragraph_status: " + str(paragraph_result.status) + ", jobURL: " + str(paragraph_result.jobUrls))
+            logging.debug("paragraph_status:" + paragraph_result.status)
             if paragraph_result.is_completed():
                 return paragraph_result
             time.sleep(self.client_config.get_query_interval())
 
-    def cancel_paragraph(self, note_id, paragraph_id):
-        """
-        Cancel specified paragraph execution.
-        :param note_id:
-        :param paragraph_id:
-        :return:
-        """
-        resp = self.session.delete(self.zeppelin_rest_url + "/api/notebook/job/" + note_id + "/" + paragraph_id)
-        self._check_response(resp)
 
     def cancel_note(self, note_id):
         """
@@ -292,37 +159,26 @@ class ZeppelinClient:
         :param note_id:
         :return:
         """
-        resp = self.session.delete(self.zeppelin_rest_url + "/api/notebook/job/" + note_id)
-        self._check_response(resp)
+        logging.info("cancel note: " + note_id)
         resp = self.session.delete(self.zeppelin_rest_url + "/api/notebook/job/" + note_id)
         self._check_response(resp)
 
+    def cancel_paragraph(self, note_id, paragraph_id):
+        logging.info("Cancel paragraph :" + paragraph_id + " of note: " + note_id) 
+        resp = self.session.delete(self.zeppelin_rest_url + "/api/notebook/job/" + note_id + "/" + paragraph_id)
+        self._check_response(resp)
+
     def new_session(self, interpreter):
-        """
-        Create new ZSession for specified interpreter
-        :param interpreter:
-        :return:
-        """
         resp = self.session.post(self.zeppelin_rest_url + "/api/session",
                           params = {'interpreter': interpreter})
         self._check_response(resp)
         return SessionInfo(resp.json()['body'])
 
     def stop_session(self, session_id):
-        """
-        Stop specified ZSession
-        :param session_id:
-        :return:
-        """
         resp = self.session.delete(self.zeppelin_rest_url + "/api/session/" + session_id)
         self._check_response(resp)
 
     def get_session(self, session_id):
-        """
-        Get SessionInfo of specified session_id
-        :param session_id:
-        :return:
-        """
         resp = self.session.get(self.zeppelin_rest_url + "/api/session/" + session_id)
         if resp.status_code == 404:
             raise Exception("No such session: " + session_id)
@@ -331,12 +187,6 @@ class ZeppelinClient:
         return SessionInfo(resp.json()['body'])
 
     def next_session_paragraph(self, note_id, max_statement):
-        """
-        Create a new paragraph for specified session.
-        :param note_id:
-        :param max_statement:
-        :return:
-        """
         resp = self.session.post(self.zeppelin_rest_url + "/api/notebook/" + note_id +"/paragraph/next",
                                  params= {'maxParagraph' : max_statement})
         self._check_response(resp)
@@ -345,9 +195,9 @@ class ZeppelinClient:
 
 if __name__ == "__main__":
 
-    client_config = ClientConfig("")
+    client_config = ClientConfig("https://knox.c-9181957fabf52f7e.cn-hangzhou.databricks.aliyuncs.com:8443/gateway/cluster-topo/zeppelin/")
     client = ZeppelinClient(client_config)
-    client.login("", "", knox_sso="https://:8443/gateway/knoxsso/api/v1/websso")
+    client.login("zongze_ram", "1234qwer", knox_sso="https://knox.c-9181957fabf52f7e.cn-hangzhou.databricks.aliyuncs.com:8443/gateway/knoxsso/api/v1/websso")
     print('version:' + client.get_version())
 
     note_id = None;
