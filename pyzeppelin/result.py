@@ -25,8 +25,8 @@ class NoteResult:
     def get_errors(self):
         for p in self.paragraphs:
             if p.status != 'FINISHED':
-                return "Paragraph {0} is {1}.\n\nText: {2}\n\nResults:{3}\n\nAssociated job urls: {4}\n\nJson:{5}"\
-                    .format(p.paragraph_id, p.status, p.text, '\n'.join(list(map(lambda x: x[1], p.results))), str(p.jobUrls), p.paragraph_json)
+                return "Paragraph {0} is {1}.\nText: {2}\nResults:{3}\nAssociated job urls: {4}"\
+                    .format(p.paragraph_id, p.status, p.text, '\n'.join(list(map(lambda x: x[1], p.results))), str(p.jobUrls))
         return "All paragraphs are finished successfully!"
 
     def __repr__(self):
