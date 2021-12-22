@@ -40,8 +40,15 @@ class ZeppelinClient:
 
     def _check_response(self, resp):
         if resp.status_code != 200:
-            raise Exception("Invoke rest api failed, status code: {}, status text: {}".format(
-                resp.status_code, resp.text))
+            if "exception" in resp.json():
+                exception = resp.json()['exception']
+                message = resp.json()['message']
+                stacktrace = resp.json()['stacktrace']
+                raise Exception("Invoke rest api failed, status code: {}, exception: {}, message: {}, stacktrace:\n{}".format(
+                    resp.status_code, exception, message, stacktrace))
+            else:
+                raise Exception("Invoke rest api failed, status code: {}, status text: {}".format(
+                    resp.status_code, resp.text))
 
     def get_version(self):
         resp = self.session.get(self.zeppelin_rest_url + "/api/version")
