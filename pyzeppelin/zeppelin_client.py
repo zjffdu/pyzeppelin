@@ -41,9 +41,9 @@ class ZeppelinClient:
     def _check_response(self, resp):
         if resp.status_code != 200:
             if "exception" in resp.json():
-                exception = resp.json()['exception']
-                message = resp.json()['message']
-                stacktrace = resp.json()['stacktrace']
+                exception = resp.json().get('exception', '')
+                message = resp.json().get('message', '')
+                stacktrace = resp.json().get('stacktrace','')
                 raise Exception("Invoke rest api failed, status code: {}, exception: {}, message: {}, stacktrace:\n{}".format(
                     resp.status_code, exception, message, stacktrace))
             else:
