@@ -81,6 +81,12 @@ class ZeppelinClient:
         resp = self.session.delete(self.zeppelin_rest_url + "/api/notebook/" + note_id)
         self._check_response(resp)
 
+
+    def delete_note_by_path(self, note_path):
+        resp = self.session.delete(self.zeppelin_rest_url + "/api/notebook/deleteByPath?notePath=" + note_path)
+        self._check_response(resp)
+
+
     def query_note_result(self, note_id):
         resp = self.session.get(self.zeppelin_rest_url + "/api/notebook/" + note_id)
         self._check_response(resp)
